@@ -1,0 +1,3 @@
+[submodule "moveit_studio_sdk"]
+	path = moveit_studio_sdk
+	url = https://github.com/PickNikRobotics/moveit_studio_sdk

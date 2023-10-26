@@ -1,0 +1,17 @@
+# A list of files that we know that contain the version number.
+# It does not have to be complete.
+# It's used to find the current version number in the files.
+# It also checks that at least this list of files has the same version number.
+KNOWN_VERSIONED_FILES:
+  - .env
+
+# A list of file patterns that we know that contain the version number.
+# Currently, it matches if the end of the path matches the pattern.
+VERSIONED_FILES_PATTERNS:
+  - ".env"
+  - "package.xml"
+  - "setup.py"
+  - "package.json"
+
+# It's used to find the current version number in the files.
+VERSION_NUMBER_REGEX: "(([0-9]+)\\.([0-9]+)\\.([0-9]+))"

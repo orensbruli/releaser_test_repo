@@ -15,3 +15,28 @@ VERSIONED_FILES_PATTERNS:
 
 # It's used to find the current version number in the files.
 VERSION_NUMBER_REGEX: "(([0-9]+)\\.([0-9]+)\\.([0-9]+))"
+steps:
+  branch_release:
+    type: branch
+    from_branch: main
+    to_branch: v{version.major}.{version.minor}
+    message: Branch the release from main as `v{version.major}.{version.minor}`
+    push: true
+  version_bump_pr:
+    type: pull_request
+    from_branch: main
+    to_branch: version-bump-{version.major}.{version.minor}
+    replace_version:
+      files: [ .env]
+      old_version: "{version}"
+      # if empty, it will bump the minor version
+      new_version: ""
+    message: >
+      Bump Moveit Studio to version `{version.major}.{version.minor+1}.0`
+  sanity_check_installs:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      - Sanity check installs for both the arm64 and x86 releases
+      - Have MacOS users and Linux Users run through the install process
+    wait_input_done: true

@@ -14,4 +14,163 @@ VERSIONED_FILES_PATTERNS:
   - "package.json"
 
 # It's used to find the current version number in the files.
-VERSION_NUMBER_REGEX: "(([0-9]+)\\.([0-9]+)\\.([0-9]+))"
+VERSION_NUMBER_REGEX: "(([0-9]+)\\.([0-9]+)\\.([0-9]+)(?:-rc([0-9]+))?)"
+
+steps:
+  branch_release:
+    type: branch
+    from_branch: main
+    to_branch: v{version.major}.{version.minor}
+    message: Branch the release from main as `v{version.major}.{version.minor}`
+    push: true
+
+  version_bump_pr:
+    type: pull_request
+    from_branch: main
+    to_branch: version-bump-{version.major}.{version.minor}
+    replace_version:
+      endings: [ ".env", "package.xml", "setup.py", "package.json"]
+      old_version: "{version}"
+      # if empty, it will bump the minor version
+      new_version: ""
+    title: >
+      Bump Moveit Studio to version `{version.major}.{version.minor}.0`
+    message: >
+      This PR contains the needed changes to bump the version to the next minor release to main
+      :eye: Please review that the changes are correct as the replacement of the version numbers is done
+      automatically and can be wrong.
+
+  retarget_pull_requests:
+    type: retarget_pull_requests
+    # used to filter the PRs to retarget
+    milestone: "{version.major}.{version.minor}"
+    from_branch: "main"
+    to_branch: "v{version.major}.{version.minor}"
+
+  update_submodule_versions:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      Update the submodules versions
+      Create version branches from main in relevant submodules.
+      Ensure all relevant version numbers in the submodules' `CMakeLists.txt`, `package.xml`, `setup.py`, etc
+      are bumped to match the studio release number {version}
+    wait_input_done: true
+
+  update_tech_specs:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      Update the MoveIt Studio Tech Specs documentation: https://docs.google.com/document/d/1IsgTJp4iTbCmDvnhXWdpFlurfWwRz-PV2ST5DMUOERM/edit
+      If nothing has changed regarding hardware requirements or support,
+      this just involves bumping the version and exporting the doc to docsend, then linking it in the Studio docs.
+    wait_input_done: true
+
+  new_release_candidate:
+    type: update_release_candidate
+    from_branch: "v{version.major}.{version.minor}"
+    tag: "{version}"
+    message: "Release candidate {version}"
+    replace_version:
+        files: [ .env]
+
+  release_candidate_in_rtd:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      Check that RTD has been published
+      This is now configured automagically through hooks in Read the Docs
+      This step is just to ensure that the ``https://docs.picknik.ai/en/{version}-rc1/`` goes live after the tag is created.
+    wait_input_done: true
+
+  studio_engineering_slack_rc:
+    type: slack_notification
+    channel: "#studio-engineering"
+    message: "@here {version.major}.{version.minor}.{version.patch}-rc{version.release_candidate} is tagged and building, and will be available for testing soon :tm:"
+    wait_input_done: true
+    error_message: |
+      Could not tag @here in #studio-engineering
+      Please tag @here in #studio-engineering:
+          @here {version} is tagged and building, and will be available for testing soon :tm:
+
+  assist_qa_process:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      Assist in management of the QA Process
+      Ensure the QA approval process for individual issues is moving forward
+      Create a {version} target in the regression testing spreadsheet
+      Delegate testing of the live trial install and demonstration process
+    yes_no_question: |
+      Have we found any bugs? Do we need another release candidate? (y/n)
+
+  update_release_notes:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      Add release notes to the public documentation:
+      - Consolidate merged PRs into a bullet point summary
+      - Update the release notes in [the public docs](../../docs_public/source/release_and_migration_guides/release_notes/release_notes.rst)
+      - Ensure any breaking or required migration changes are included in the [migration guides](../../docs_public/source/release_and_migration_guides/migration_guides) (take a look at the incompatibility tagged PR info below for PRs that may need to be included in the migration guide).
+      - Take a look at PRs marked with the [incompatibility](https://github.com/PickNikRobotics/moveit_studio/pulls?q=is%3Apr+is%3Aclosed+label%3Aincompatibility) tag as a first cut, acknowledging that there may be some missed tags and you should add any missing ones you find."
+      - Create and merge a PR against the release version's branch
+
+  final_release:
+    type: final_release
+    from_branch: "v{version.major}.{version.minor}"
+    tag: "{version.major}.{version.minor}.{version.patch}"
+    message: Release {version.major}.{version.minor}.{version.patch}
+    prerelease: false
+
+
+  final_release_submodules:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      Merge the release branch to main in all submodules
+      Ensure all relevant version numbers in the submodules' `CMakeLists.txt`, `package.xml`, `setup.py`, etc
+      are bumped to match the studio release number {version}
+    wait_input_done: true
+
+
+  clean_rtd_and_publish:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      The X.Y.Z tag will be built and set to stable by default, but hidden in the versions list
+      Go to read the docs and login
+      Click moveit_studio -> Versions -> Then the Edit button for X.Y.Z (if you don't see an Edit button, you may need to post in Slack to ask if someone with proper admin permissions can do these steps for you)
+      Ensure the Hidden button is unchecked and click Save
+      Deactivate all the X.Y.Z-rcN versions with their edit buttons
+      For patch releases, ensure the last patch release is set to hidden (i.e., X.Y.(Z-1))
+    wait_input_done: true
+
+  sanity_check_installs:
+    type: manual
+    message: |
+      NOT AUTOMATED STEP. TAKE YOUR TIME TO DO IT RIGHT
+      - Sanity check installs for both the arm64 and x86 releases
+      - Have MacOS users and Linux Users run through the install process
+    wait_input_done: true
+
+  release_announcement:
+    type: slack_notification
+    channel: "#announcements"
+    message: |
+      @here :tada: MoveIt Studio {version.major}.{version.minor}.{version.patch} is released! :tada:
+    wait_input_done: true
+    error_message: |
+      Could not tag @here in #studio-engineering
+      Please tag @here in #studio-engineering:
+          {message}
+
+  merge_release_to_main:
+    type: pull_request
+    from_branch: "v{version.major}.{version.minor}"
+    to_branch: "main"
+    title: "Merge {version.major}.{version.minor} to main"
+    message: |
+      Merge {version.major}.{version.minor} to main
+      Resolve conflicts and merge the release branch to main
+      :warning: **IMPORTANT: Do not squash merge this PR!**
+      It must be a merge commit to keep the history clean and traceable.
